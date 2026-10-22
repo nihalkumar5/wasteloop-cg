@@ -27,6 +27,9 @@ export const initialCases: CaseItem[] = [
     ],
     wasteCollectedKg: 50,
     notes: "Area cleaned. Bin overflow was the main reason. Additional bin recommended.",
+    coordinates: { lat: 21.2384, lng: 81.6190, accuracy: 4 },
+    visualFingerprint: "Mixed household waste overflow around green municipal dumpster on concrete curb",
+    reportedByCount: 1,
     feedback: {
       resolved: true,
       comment: "Quick work by the sanitation team!"
@@ -64,6 +67,9 @@ export const initialCases: CaseItem[] = [
       "Flush drain line to ensure unhindered flow",
       "Re-secure iron drain grate and take photo"
     ],
+    coordinates: { lat: 21.2421, lng: 81.6425, accuracy: 6 },
+    visualFingerprint: "Clogged stormwater iron grate inlet filled with plastic bottles and black silt",
+    reportedByCount: 1,
     timeline: [
       { status: "Submitted", timestamp: "12 Oct, 08:15 AM", completed: true },
       { status: "Under Review", timestamp: "12 Oct, 09:00 AM", completed: true, active: true },
@@ -97,6 +103,9 @@ export const initialCases: CaseItem[] = [
       "Load into municipal tipper truck",
       "Sweep leaves and sawdust off the pavement"
     ],
+    coordinates: { lat: 21.2514, lng: 81.6596, accuracy: 5 },
+    visualFingerprint: "Fallen tree limb resting across grey tiled pedestrian footpath",
+    reportedByCount: 1,
     timeline: [
       { status: "Submitted", timestamp: "12 Oct, 06:40 AM", completed: true },
       { status: "Under Review", timestamp: "12 Oct, 07:10 AM", completed: true },
@@ -128,6 +137,9 @@ export const initialCases: CaseItem[] = [
       "Record site geo-coordinates and plot boundaries",
       "Erect no-dumping signage"
     ],
+    coordinates: { lat: 21.2642, lng: 81.6112, accuracy: 8 },
+    visualFingerprint: "Smoldering open garbage pile with ash and white smoke plumes on red soil plot",
+    reportedByCount: 1,
     timeline: [
       { status: "Submitted", timestamp: "12 Oct, 05:20 AM", completed: true },
       { status: "Under Review", timestamp: "12 Oct, 05:45 AM", completed: true, active: true },
@@ -154,6 +166,9 @@ export const initialCases: CaseItem[] = [
     eta: "1 hr",
     wasteCollectedKg: 120,
     notes: "Removed branch and swept pavement clean. Normal traffic restored.",
+    coordinates: { lat: 21.2398, lng: 81.6681, accuracy: 5 },
+    visualFingerprint: "Clean asphalt street after branch removal, no debris remaining",
+    reportedByCount: 1,
     feedback: {
       resolved: true,
       comment: "Pavement is completely clear now. Thank you."

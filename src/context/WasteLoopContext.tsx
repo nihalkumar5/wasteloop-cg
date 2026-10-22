@@ -63,6 +63,47 @@ export function WasteLoopProvider({ children }: { children: React.ReactNode }) {
     const nowStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
     const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
+    // 1. Check if this report is a duplicate of an existing active case
+    if (data.isDuplicateMerged && data.id) {
+      const existingMatch = cases.find((c) => c.id === data.id);
+      if (existingMatch) {
+        const nextCount = (existingMatch.reportedByCount || 1) + 1;
+        const elevatedPriority: Priority = nextCount >= 2 ? "Urgent" : existingMatch.priority;
+        const nextCases = cases.map((c) => {
+          if (c.id === data.id) {
+            return {
+              ...c,
+              priority: elevatedPriority,
+              reportedByCount: nextCount,
+              duplicateCases: [
+                ...(c.duplicateCases || []),
+                {
+                  reportedAt: `${dateStr}, ${nowStr}`,
+                  photoUrl: data.photoUrl,
+                  notes: data.description || "Additional citizen report merged by AI"
+                }
+              ],
+              timeline: [
+                ...c.timeline,
+                {
+                  status: `Report #${nextCount} Merged (AI Match)`,
+                  timestamp: nowStr,
+                  completed: true,
+                  subtext: `Duplicate report at this GPS location merged · Priority escalated to ${elevatedPriority}`
+                }
+              ]
+            };
+          }
+          return c;
+        });
+        persistCases(nextCases);
+        setActiveCaseId(data.id);
+        showToast(`AI Duplicate Match! Merged with Case ${data.id}. Priority boosted to ${elevatedPriority}.`);
+        return data.id;
+      }
+    }
+
+    // 2. Fresh complaint
     const newCase: CaseItem = {
       id: newId,
       title: data.title || "Waste issue near roadside",
@@ -78,6 +119,10 @@ export function WasteLoopProvider({ children }: { children: React.ReactNode }) {
       afterPhotoUrl: "/cleaned_street.jpg",
       distance: "1.8 km",
       eta: "25 min",
+      coordinates: data.coordinates || { lat: 21.2514, lng: 81.6296, accuracy: 5 },
+      visualFingerprint: data.visualFingerprint || "Mixed municipal solid waste accumulation near roadside curb",
+      reportedByCount: 1,
+      duplicateCases: [],
       possibleCause: data.possibleCause || "Missed collection or overflow due to insufficient bins.",
       recommendedDepartment: data.recommendedDepartment || "Municipal Sanitation Team",
       suggestedAction: data.suggestedAction || "Send collection vehicle and clean the area. Check if additional bins are needed.",

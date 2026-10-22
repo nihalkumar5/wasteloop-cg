@@ -19,7 +19,10 @@ import {
   User,
   ArrowRight,
   ShieldCheck,
-  Check
+  Check,
+  Navigation,
+  ExternalLink,
+  Layers
 } from "lucide-react";
 import { CaseItem, FieldScreen } from "../app/types";
 
@@ -149,9 +152,16 @@ export default function FieldApp({
                             {task.priority}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono text-[#58735b] font-medium block mt-0.5">
-                          {task.id}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-[10px] font-mono text-[#58735b] font-medium">
+                            {task.id}
+                          </span>
+                          {task.reportedByCount && task.reportedByCount > 1 && (
+                            <span className="text-[8px] bg-amber-100 text-amber-800 font-bold px-1.5 rounded-full border border-amber-200">
+                              ⚡ {task.reportedByCount} reports
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-[#617361] mt-1">
                         <span className="flex items-center gap-1 truncate max-w-[130px]">
@@ -188,21 +198,46 @@ export default function FieldApp({
             </div>
 
             {/* Badges & ID row */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold bg-[#e8f5e9] text-[#22543d] px-2.5 py-1 rounded-full">
                 {activeTask.category}
               </span>
               <span className="text-xs font-bold bg-[#fee2e2] text-[#991b1b] px-2.5 py-1 rounded-full">
                 {activeTask.priority}
               </span>
+              {activeTask.reportedByCount && activeTask.reportedByCount > 1 && (
+                <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                  ⚡ {activeTask.reportedByCount} Citizen Reports Merged
+                </span>
+              )}
             </div>
 
-            {/* Title & Location */}
-            <div>
-              <div className="text-sm font-mono font-bold text-[#1b3420]">{activeTask.id}</div>
-              <p className="text-xs text-[#526652] mt-0.5">
-                {activeTask.location} · <span className="font-semibold text-[#1e482b]">{activeTask.distance || "2 km"} away</span>
+            {/* Title & Location with Live GPS & Map button */}
+            <div className="bg-[#f0f6ed] p-3 rounded-2xl border border-[#d6e5d2] flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-[#1b3420]">{activeTask.id}</span>
+                {activeTask.coordinates && (
+                  <span className="text-[9px] font-mono text-[#205136] bg-[#e1eee0] px-1.5 py-0.5 rounded font-semibold">
+                    {activeTask.coordinates.lat.toFixed(4)}°N, {activeTask.coordinates.lng.toFixed(4)}°E
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[#354735] font-medium leading-snug">
+                {activeTask.location}
               </p>
+
+              {activeTask.coordinates && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${activeTask.coordinates.lat},${activeTask.coordinates.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full mt-1 bg-[#204e37] hover:bg-[#183d2b] text-white py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
+                >
+                  <Navigation size={13} />
+                  <span>Navigate with Google Maps</span>
+                  <ExternalLink size={11} />
+                </a>
+              )}
             </div>
 
             {/* Large Site Photo */}

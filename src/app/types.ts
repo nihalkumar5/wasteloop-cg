@@ -28,6 +28,19 @@ export interface CaseItem {
   steps?: string[];
   wasteCollectedKg?: number;
   notes?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  };
+  visualFingerprint?: string;
+  reportedByCount?: number;
+  duplicateCases?: {
+    reportedAt: string;
+    photoUrl?: string;
+    notes?: string;
+  }[];
+  isDuplicateMerged?: boolean;
   feedback?: {
     resolved: boolean;
     comment?: string;

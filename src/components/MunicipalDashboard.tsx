@@ -21,7 +21,9 @@ import {
   Filter,
   CheckCircle2,
   Clock,
-  CircleAlert
+  CircleAlert,
+  ExternalLink,
+  Layers
 } from "lucide-react";
 import { CaseItem, MunicipalTab } from "../app/types";
 
@@ -336,17 +338,39 @@ export default function MunicipalDashboard({
                 </button>
 
                 {/* Pin Details tooltip if active */}
-                {selectedMapPin && (
-                  <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-[#d2dfce] shadow-md max-w-xs text-left z-20">
-                    <span className="text-[10px] font-mono font-bold text-[#204e37] block">{selectedMapPin}</span>
-                    <strong className="text-xs text-[#1e2f1e] block truncate">
-                      {cases.find((c) => c.id === selectedMapPin)?.title}
-                    </strong>
-                    <span className="text-[10px] text-[#556955] block">
-                      {cases.find((c) => c.id === selectedMapPin)?.location}
-                    </span>
-                  </div>
-                )}
+                {selectedMapPin && (() => {
+                  const targetCase = cases.find((c) => c.id === selectedMapPin);
+                  if (!targetCase) return null;
+                  return (
+                    <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-[#d2dfce] shadow-md max-w-xs text-left z-20">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold text-[#204e37] block">{targetCase.id}</span>
+                        {targetCase.coordinates && (
+                          <span className="text-[9px] font-mono bg-[#edf4ea] text-[#1c4b2c] font-semibold px-1.5 py-0.5 rounded">
+                            {targetCase.coordinates.lat.toFixed(4)}°N, {targetCase.coordinates.lng.toFixed(4)}°E
+                          </span>
+                        )}
+                      </div>
+                      <strong className="text-xs text-[#1e2f1e] block truncate mt-0.5">
+                        {targetCase.title}
+                      </strong>
+                      <span className="text-[10px] text-[#556955] block truncate">
+                        {targetCase.location}
+                      </span>
+                      {targetCase.coordinates && (
+                        <a
+                          href={`https://www.google.com/maps?q=${targetCase.coordinates.lat},${targetCase.coordinates.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-[#205136] font-bold flex items-center gap-1 hover:underline mt-1"
+                        >
+                          <span>Open in Maps</span>
+                          <ExternalLink size={10} />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Map Legend */}
@@ -401,12 +425,24 @@ export default function MunicipalDashboard({
                             className="w-10 h-10 rounded-lg object-cover border border-[#d6dfce] shrink-0"
                           />
                           <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-[#1e2f1e] truncate group-hover:text-[#205136]">
-                              {c.title}
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-xs font-bold text-[#1e2f1e] truncate group-hover:text-[#205136]">
+                                {c.title}
+                              </h4>
+                              {c.reportedByCount && c.reportedByCount > 1 && (
+                                <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-full border border-amber-200">
+                                  ⚡ {c.reportedByCount} Merged
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] text-[#657965] block truncate">
                               {c.location}
                             </span>
+                            {c.coordinates && (
+                              <span className="text-[9px] text-[#205136] font-mono block">
+                                {c.coordinates.lat.toFixed(4)}°N, {c.coordinates.lng.toFixed(4)}°E
+                              </span>
+                            )}
                           </div>
                         </div>
 

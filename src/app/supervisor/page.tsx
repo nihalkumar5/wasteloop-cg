@@ -29,7 +29,11 @@ import {
   Smartphone,
   HardHat,
   Monitor,
-  LogOut
+  LogOut,
+  ExternalLink,
+  Navigation,
+  Layers,
+  Fingerprint
 } from "lucide-react";
 import { CaseItem, CaseStatus, MunicipalTab } from "../types";
 import { useWasteLoop } from "../../context/WasteLoopContext";
@@ -318,26 +322,55 @@ export default function SupervisorPortalPage() {
                   </div>
                 </button>
 
-                {selectedMapPin && (
-                  <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-xs p-3 rounded-xl border border-[#d2dfce] shadow-md max-w-xs text-left z-20">
-                    <span className="text-[10px] font-mono font-bold text-[#204e37] block">{selectedMapPin}</span>
-                    <strong className="text-xs text-[#1e2f1e] block truncate">
-                      {cases.find((c) => c.id === selectedMapPin)?.title}
-                    </strong>
-                    <span className="text-[10px] text-[#556955] block">
-                      {cases.find((c) => c.id === selectedMapPin)?.location}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const target = cases.find((c) => c.id === selectedMapPin);
-                        if (target) setSelectedDrawerCase(target);
-                      }}
-                      className="text-[10px] font-bold text-[#204e37] hover:underline mt-1.5 block"
-                    >
-                      Open Case Triage Drawer →
-                    </button>
-                  </div>
-                )}
+                {selectedMapPin && (() => {
+                  const targetCase = cases.find((c) => c.id === selectedMapPin);
+                  if (!targetCase) return null;
+                  return (
+                    <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-xs p-3 rounded-xl border border-[#d2dfce] shadow-md max-w-xs text-left z-20">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold text-[#204e37] block">{targetCase.id}</span>
+                        {targetCase.coordinates && (
+                          <span className="text-[9px] font-mono bg-[#edf4ea] text-[#1c4b2c] font-semibold px-1.5 py-0.5 rounded">
+                            {targetCase.coordinates.lat.toFixed(4)}°N, {targetCase.coordinates.lng.toFixed(4)}°E
+                          </span>
+                        )}
+                      </div>
+                      <strong className="text-xs text-[#1e2f1e] block truncate mt-0.5">
+                        {targetCase.title}
+                      </strong>
+                      <span className="text-[10px] text-[#556955] block truncate">
+                        {targetCase.location}
+                      </span>
+
+                      {targetCase.reportedByCount && targetCase.reportedByCount > 1 && (
+                        <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          <Layers size={11} />
+                          <span>{targetCase.reportedByCount} Citizen Reports Merged</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#e2ebd0]">
+                        <button
+                          onClick={() => setSelectedDrawerCase(targetCase)}
+                          className="text-[10px] font-bold text-[#204e37] hover:underline"
+                        >
+                          Open Triage Drawer →
+                        </button>
+                        {targetCase.coordinates && (
+                          <a
+                            href={`https://www.google.com/maps?q=${targetCase.coordinates.lat},${targetCase.coordinates.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-[#2e5d3c] flex items-center gap-1 hover:underline ml-auto font-medium"
+                          >
+                            <span>Maps</span>
+                            <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Map Legend */}
@@ -345,7 +378,7 @@ export default function SupervisorPortalPage() {
                 <div className="flex items-center gap-4">
                   <span className="flex items-center gap-1.5 font-medium">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />
-                    High
+                    High / Urgent
                   </span>
                   <span className="flex items-center gap-1.5 font-medium">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -353,7 +386,7 @@ export default function SupervisorPortalPage() {
                   </span>
                   <span className="flex items-center gap-1.5 font-medium">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                    Low
+                    Resolved
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-[#205136]">
@@ -392,15 +425,29 @@ export default function SupervisorPortalPage() {
                             className="w-12 h-12 rounded-xl object-cover border border-[#d6dfce] shrink-0"
                           />
                           <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-[#1e2f1e] truncate group-hover:text-[#205136]">
-                              {c.title}
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-xs font-bold text-[#1e2f1e] truncate group-hover:text-[#205136]">
+                                {c.title}
+                              </h4>
+                              {c.reportedByCount && c.reportedByCount > 1 && (
+                                <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded-full border border-amber-200">
+                                  ⚡ {c.reportedByCount} Merged
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-[#657965] block truncate mt-0.5">
                               {c.location}
                             </span>
-                            <span className="text-[10px] text-[#869986] font-mono block">
-                              {c.id}
-                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-[#869986] font-mono">
+                                {c.id}
+                              </span>
+                              {c.coordinates && (
+                                <span className="text-[9px] text-[#205136] font-mono bg-[#edf5eb] px-1.5 py-0.2 rounded">
+                                  {c.coordinates.lat.toFixed(4)}°N, {c.coordinates.lng.toFixed(4)}°E
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -451,6 +498,105 @@ export default function SupervisorPortalPage() {
 
             {/* Content Details */}
             <div className="flex flex-col gap-4 py-4">
+              {/* Exact Location & Navigation Card */}
+              <div className="bg-[#f6f9f3] border border-[#dce5d6] rounded-2xl p-3.5 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1c3922] flex items-center gap-1.5">
+                    <MapPin size={14} className="text-[#205136]" />
+                    Exact Incident Location
+                  </span>
+                  {selectedDrawerCase.coordinates && (
+                    <span className="text-[10px] font-mono bg-[#e8f2e5] text-[#1c4e2b] font-bold px-2 py-0.5 rounded-full">
+                      Accurate to ±{selectedDrawerCase.coordinates.accuracy || 10}m
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-xs text-[#2d3f2d] font-medium leading-snug">
+                  {selectedDrawerCase.location}
+                </div>
+
+                {selectedDrawerCase.coordinates && (
+                  <div className="flex items-center justify-between pt-2 border-t border-[#e2ebd0]">
+                    <span className="text-[11px] font-mono text-[#526a52]">
+                      {selectedDrawerCase.coordinates.lat.toFixed(6)}° N, {selectedDrawerCase.coordinates.lng.toFixed(6)}° E
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedDrawerCase.coordinates.lat},${selectedDrawerCase.coordinates.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-[#204e37] hover:bg-[#183d2b] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition shadow-xs"
+                    >
+                      <Navigation size={12} />
+                      <span>Open Google Maps</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Deduplication & Multi-Citizen Tracking */}
+              {selectedDrawerCase.reportedByCount && selectedDrawerCase.reportedByCount > 1 ? (
+                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                      <Layers size={14} className="text-amber-700" />
+                      AI Deduplication: {selectedDrawerCase.reportedByCount} Citizen Reports Merged
+                    </span>
+                    <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                      Escalated to Urgent
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-amber-900/80 leading-relaxed">
+                    AI detected matching spatial proximity (&lt;60m) and visual waste signature. Multiple citizens reported this same pile, automatically consolidated to prevent duplicate work orders.
+                  </p>
+
+                  {selectedDrawerCase.visualFingerprint && (
+                    <div className="bg-white/80 border border-amber-200 rounded-xl p-2 text-[10px] flex items-start gap-2">
+                      <Fingerprint size={14} className="text-amber-800 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-amber-950 block">AI Visual Fingerprint:</span>
+                        <span className="text-amber-900 font-mono text-[9px] break-all">
+                          {selectedDrawerCase.visualFingerprint}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Duplicate Reports List */}
+                  {selectedDrawerCase.duplicateCases && selectedDrawerCase.duplicateCases.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-2">
+                      <span className="text-[10px] font-bold text-amber-950 uppercase tracking-wider">
+                        Additional Merged Citizen Submissions
+                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        {selectedDrawerCase.duplicateCases.map((dup, i) => (
+                          <div key={i} className="flex items-center gap-2.5 bg-white p-2 rounded-xl border border-amber-200 text-[11px]">
+                            {dup.photoUrl && (
+                              <img src={dup.photoUrl} alt="Duplicate report" className="w-10 h-10 rounded-lg object-cover border border-amber-100 shrink-0" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <span className="font-semibold text-neutral-800 block truncate">{dup.notes || "Citizen duplicate report"}</span>
+                              <span className="text-[9px] text-neutral-500">{dup.reportedAt}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-[#f0f6ed] border border-[#d5e4d1] rounded-2xl p-3 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Fingerprint size={15} className="text-[#205136]" />
+                    <span className="text-[11px] font-medium text-[#2d4632]">
+                      AI Visual Signature registered for automatic deduplication.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Site Photos */}
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-bold text-[#203420]">Photo Evidence</span>

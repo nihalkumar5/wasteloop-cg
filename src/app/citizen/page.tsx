@@ -26,7 +26,14 @@ import {
   Check,
   Crosshair,
   RefreshCw,
-  Navigation
+  Navigation,
+  Recycle,
+  BookOpen,
+  Calendar,
+  List,
+  Search,
+  Home,
+  ShieldAlert
 } from "lucide-react";
 import { CitizenScreen } from "../types";
 import { useWasteLoop } from "../../context/WasteLoopContext";
@@ -177,6 +184,7 @@ const dict = {
 export default function CitizenMinimalApp() {
   const {
     activeCase,
+    cases,
     createComplaint,
     submitCitizenFeedback,
     toast
@@ -187,6 +195,8 @@ export default function CitizenMinimalApp() {
   const t = dict[lang];
 
   const [currentScreen, setCurrentScreen] = useState<CitizenScreen>("home");
+  const [showModalInfo, setShowModalInfo] = useState<string | null>(null);
+  const [duplicateAlert, setDuplicateAlert] = useState<{ matchedCaseId: string; reason: string } | null>(null);
 
   // Simple form states
   const [selectedCategory, setSelectedCategory] = useState("Garbage Pile");
@@ -200,27 +210,48 @@ export default function CitizenMinimalApp() {
 
   const detectLiveLocation = () => {
     setGpsStatus("detecting");
+    setSelectedLocation("Acquiring high-accuracy GPS lock...");
     if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(4));
-          const lng = Number(pos.coords.longitude.toFixed(4));
-          const acc = Math.round(pos.coords.accuracy || 6);
+        async (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(5));
+          const lng = Number(pos.coords.longitude.toFixed(5));
+          const acc = Math.round(pos.coords.accuracy || 4);
           setCoordinates({ lat, lng, accuracy: acc });
           setGpsStatus("locked");
-          setSelectedLocation(`GPS ${lat}°N, ${lng}°E · Ward 12, Telibandha, Raipur`);
+
+          try {
+            // Real reverse geocode to get exact street and locality
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+              headers: { "Accept-Language": "en" }
+            });
+            const data = await res.json();
+            if (data && data.address) {
+              const street = data.address.road || data.address.pedestrian || data.address.suburb || data.address.neighbourhood || "Main Road";
+              const area = data.address.city_district || data.address.suburb || data.address.city || "Raipur";
+              setSelectedLocation(`${street}, ${area} (GPS: ${lat}°N, ${lng}°E · ±${acc}m)`);
+              return;
+            }
+          } catch {
+            // fallback
+          }
+          setSelectedLocation(`GPS Pin: ${lat}°N, ${lng}°E (±${acc}m accuracy)`);
         },
         () => {
-          setCoordinates({ lat: 21.2514, lng: 81.6296, accuracy: 10 });
+          const fallbackLat = 21.2514;
+          const fallbackLng = 81.6296;
+          setCoordinates({ lat: fallbackLat, lng: fallbackLng, accuracy: 6 });
           setGpsStatus("locked");
-          setSelectedLocation("Ward 12, Telibandha, Raipur (GPS Verified)");
+          setSelectedLocation(`Telibandha Lake Road, Ward 12, Raipur (GPS: ${fallbackLat}°N, ${fallbackLng}°E)`);
         },
-        { enableHighAccuracy: true, timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 8000 }
       );
     } else {
-      setCoordinates({ lat: 21.2514, lng: 81.6296, accuracy: 10 });
+      const fallbackLat = 21.2514;
+      const fallbackLng = 81.6296;
+      setCoordinates({ lat: fallbackLat, lng: fallbackLng, accuracy: 6 });
       setGpsStatus("locked");
-      setSelectedLocation("Ward 12, Telibandha, Raipur (GPS Verified)");
+      setSelectedLocation(`Telibandha Lake Road, Ward 12, Raipur (GPS: ${fallbackLat}°N, ${fallbackLng}°E)`);
     }
   };
 
@@ -292,16 +323,37 @@ export default function CitizenMinimalApp() {
           location: selectedLocation,
           category: selectedCategory,
           coordinates: coordinates || { lat: 21.2514, lng: 81.6296 },
+          existingCases: cases || [],
         }),
       });
       const json = await res.json();
       const aiData = json.data;
 
+      // Duplicate Check
+      if (aiData?.isDuplicate && aiData?.matchedCaseId) {
+        createComplaint({
+          id: aiData.matchedCaseId,
+          isDuplicateMerged: true,
+          photoUrl: photoPreview,
+          description: description || "Additional citizen photo & report",
+          coordinates: coordinates || { lat: 21.2514, lng: 81.6296 },
+        });
+
+        setDuplicateAlert({
+          matchedCaseId: aiData.matchedCaseId,
+          reason: aiData.duplicateReason || "A complaint for this identical location is already active."
+        });
+        return;
+      }
+
+      // Fresh Complaint
       createComplaint({
         title: aiData?.summary || `${selectedCategory} issue reported`,
         category: aiData?.category || selectedCategory,
         location: selectedLocation,
         photoUrl: photoPreview,
+        coordinates: coordinates || { lat: 21.2514, lng: 81.6296 },
+        visualFingerprint: aiData?.visualFingerprint || `${selectedCategory} accumulation near ${selectedLocation}`,
         description: description || aiData?.summary || "Garbage overflow issue reported by citizen.",
         possibleCause: "Overflowing bin analyzed by Gemini AI",
         recommendedDepartment: aiData?.assignedSquad || "Raipur Sanitation Team",
@@ -310,20 +362,23 @@ export default function CitizenMinimalApp() {
         steps: aiData?.actionSteps || undefined,
         wasteCollectedKg: aiData?.estimatedWasteKg || 45,
       });
+      setCurrentScreen("track");
     } catch {
       createComplaint({
         title: `${selectedCategory} issue reported`,
         category: selectedCategory,
         location: selectedLocation,
         photoUrl: photoPreview,
+        coordinates: coordinates || { lat: 21.2514, lng: 81.6296 },
+        visualFingerprint: `${selectedCategory} accumulation near ${selectedLocation}`,
         description: description || "Garbage overflow issue reported by citizen.",
         possibleCause: "Overflowing bin",
         recommendedDepartment: "Raipur Sanitation Team",
         suggestedAction: "Dispatch squad to clear garbage"
       });
+      setCurrentScreen("track");
     } finally {
       setIsAiAnalyzing(false);
-      setCurrentScreen("track");
     }
   };
 
@@ -338,9 +393,19 @@ export default function CitizenMinimalApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f3f7f1] text-[#1c241c] font-sans flex flex-col justify-between">
+    <div
+      className="min-h-screen text-[#1c241c] font-sans flex flex-col justify-between"
+      style={{
+        backgroundColor: "#f5f4ed",
+        backgroundImage: `
+          linear-gradient(to right, rgba(28, 69, 46, 0.05) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(28, 69, 46, 0.05) 1px, transparent 1px)
+        `,
+        backgroundSize: "22px 22px",
+      }}
+    >
       {/* Clean Topbar with Language Selector */}
-      <header className="h-16 bg-white border-b border-[#dce5d8] px-4 md:px-8 flex items-center justify-between sticky top-0 z-40">
+      <header className="h-16 bg-white/90 backdrop-blur-md border-b border-[#dce5d8] px-4 md:px-8 flex items-center justify-between sticky top-0 z-40">
         <button
           onClick={() => setCurrentScreen("home")}
           className="flex items-center gap-2.5 cursor-pointer text-left"
@@ -430,78 +495,171 @@ export default function CitizenMinimalApp() {
       </header>
 
       {/* Main Minimal Body */}
-      <main className="flex-1 max-w-2xl w-full mx-auto p-4 md:p-6 flex flex-col justify-center">
-        {/* ================= SCREEN 1: HOME (MINIMALIST) ================= */}
+      <main className="flex-1 max-w-2xl w-full mx-auto p-4 md:p-6 flex flex-col justify-center items-center">
+        {/* ================= SCREEN 1: HOME ================= */}
         {currentScreen === "home" && (
-          <div className="flex flex-col gap-5 animate-in fade-in duration-150">
-            {/* Big Action 1: Report Issue */}
-            <button
-              onClick={() => setCurrentScreen("report")}
-              className="bg-[#204e37] hover:bg-[#183d2b] active:scale-[0.99] text-white p-6 md:p-8 rounded-3xl shadow-xl transition flex items-center justify-between gap-4 cursor-pointer group"
+          <div className="flex flex-col items-center gap-3 w-full animate-in fade-in duration-200">
+            {/* Phone Shell */}
+            <div
+              className="w-full max-w-[360px] h-[640px] rounded-[40px] border-[7px] border-[#1d2620] shadow-2xl overflow-hidden flex flex-col relative"
+              style={{
+                backgroundColor: "#f5f4ed",
+                backgroundImage: `
+                  linear-gradient(to right, rgba(28, 69, 46, 0.05) 1px, transparent 1px),
+                  linear-gradient(to bottom, rgba(28, 69, 46, 0.05) 1px, transparent 1px)
+                `,
+                backgroundSize: "22px 22px",
+              }}
             >
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center text-[#a7f3d0] shrink-0">
-                  <Camera size={34} />
-                </div>
-                <div className="text-left">
-                  <span className="text-xl md:text-2xl font-black block leading-tight">
-                    {t.reportIssueTitle}
-                  </span>
-                  <span className="text-xs md:text-sm text-[#d1fae5] font-medium block mt-1">
-                    {t.reportIssueDesc}
-                  </span>
-                </div>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition shrink-0">
-                <ArrowRight size={20} />
-              </div>
-            </button>
+              {/* Phone Speaker Notch */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-[#1d2620] rounded-b-xl z-30" />
 
-            {/* Big Action 2: Track Active Complaint */}
-            <button
-              onClick={() => setCurrentScreen("track")}
-              className="bg-white hover:bg-[#f8faf7] active:scale-[0.99] border-2 border-[#d8e3d2] p-5 md:p-6 rounded-3xl shadow-sm hover:shadow-md transition flex items-center justify-between gap-4 cursor-pointer"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#e0f2fe] text-[#0369a1] flex items-center justify-center shrink-0">
-                  <Clock size={28} />
-                </div>
-                <div className="text-left">
-                  <span className="text-lg md:text-xl font-black text-[#143826] block leading-tight">
-                    {t.trackStatusTitle}
-                  </span>
-                  <span className="text-xs text-[#556955] font-medium block mt-0.5">
-                    Case #{activeCase.id} · {activeCase.location}
-                  </span>
+              {/* Status bar */}
+              <div className="h-9 px-6 pt-2 flex items-center justify-between text-xs font-semibold text-[#2d372d] shrink-0 z-20">
+                <span>9:41</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] tracking-tight">5G</span>
+                  <div className="w-5 h-2.5 border border-[#2d372d] rounded-sm p-0.5 flex items-center">
+                    <div className="w-3 h-full bg-[#2d372d] rounded-2xs" />
+                  </div>
                 </div>
               </div>
-              <span className="text-xs font-bold bg-[#fef3c7] text-[#92400e] px-3 py-1 rounded-full shrink-0">
-                {activeCase.status}
-              </span>
-            </button>
 
-            {/* Helpline Callout Button */}
-            <a
-              href="tel:1100"
-              className="bg-[#e8f5e9] hover:bg-[#d8eed8] border border-[#c6dfc6] p-4 rounded-2xl flex items-center justify-between gap-3 transition"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#204e37] text-white flex items-center justify-center">
-                  <Phone size={20} />
+              {/* Content Body */}
+              <div className="flex-1 px-5 pt-1 pb-16 flex flex-col overflow-y-auto no-scrollbar">
+                {/* Header: Cleaner Communities for a Better Chhattisgarh */}
+                <div className="text-center pt-2 pb-3.5">
+                  <h1 className="text-sm font-semibold text-[#2c3d2e] tracking-tight leading-snug">
+                    Cleaner Communities
+                  </h1>
+                  <p className="text-sm font-semibold text-[#2c3d2e] tracking-tight leading-snug">
+                    for a Better Chhattisgarh
+                  </p>
                 </div>
-                <div className="text-left">
-                  <span className="text-sm font-bold text-[#143826] block">
-                    {t.helplineTitle}
-                  </span>
-                  <span className="text-[11px] text-[#556955] block">
-                    {t.helplineDesc}
-                  </span>
+
+                {/* Primary Action Hero: Report an Issue */}
+                <button
+                  onClick={() => setCurrentScreen("report")}
+                  className="w-full bg-[#1b4329] hover:bg-[#153721] active:scale-[0.98] text-white rounded-2xl py-3.5 px-4 flex items-center justify-between shadow-md transition group mb-3.5 cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white">
+                      <ShieldAlert size={18} strokeWidth={2.2} />
+                    </div>
+                    <span className="text-[15px] font-semibold text-white tracking-tight">
+                      Report an Issue
+                    </span>
+                  </div>
+                  <ArrowRight size={18} className="text-white group-hover:translate-x-0.5 transition" />
+                </button>
+
+                {/* 4 Quick Action Cards (2x2 Grid) */}
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  {/* Card 1: Track Complaint */}
+                  <button
+                    onClick={() => setCurrentScreen("track")}
+                    className="bg-white hover:bg-[#fafbfa] active:scale-[0.98] rounded-3xl p-4 flex flex-col justify-between h-[108px] text-left transition shadow-xs border border-[#e8ece5] group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#eef4fe] text-[#2563eb] flex items-center justify-center">
+                      <Clock size={19} strokeWidth={2.2} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-[#1a251e] leading-snug">Track Complaint</h3>
+                      <p className="text-[11px] text-[#718274] font-medium">Check status</p>
+                    </div>
+                  </button>
+
+                  {/* Card 2: Find Scrap Buyer */}
+                  <button
+                    onClick={() => setShowModalInfo("Find Scrap Buyer (Kabadiwala): 14 verified dry-waste collectors operating in Raipur with doorstep pickup.")}
+                    className="bg-white hover:bg-[#fafbfa] active:scale-[0.98] rounded-3xl p-4 flex flex-col justify-between h-[108px] text-left transition shadow-xs border border-[#e8ece5] group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#eef9f1] text-[#16a34a] flex items-center justify-center">
+                      <Recycle size={19} strokeWidth={2.2} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-[#1a251e] leading-snug">Find Scrap Buyer</h3>
+                      <p className="text-[11px] text-[#718274] font-medium">Sell your scrap</p>
+                    </div>
+                  </button>
+
+                  {/* Card 3: Collection Schedule */}
+                  <button
+                    onClick={() => setShowModalInfo("Collection Schedule for Raipur: Door-to-door wet waste at 8:30 AM daily; Dry recycling every Wed & Sat.")}
+                    className="bg-white hover:bg-[#fafbfa] active:scale-[0.98] rounded-3xl p-4 flex flex-col justify-between h-[108px] text-left transition shadow-xs border border-[#e8ece5] group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#ebf8f2] text-[#059669] flex items-center justify-center">
+                      <Calendar size={19} strokeWidth={2.2} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-[#1a251e] leading-snug">Collection Schedule</h3>
+                      <p className="text-[11px] text-[#718274] font-medium">Your locality</p>
+                    </div>
+                  </button>
+
+                  {/* Card 4: Awareness */}
+                  <button
+                    onClick={() => setShowModalInfo("Swachh CG Awareness: Segregate 3 bins (Green: Organic, Blue: Recyclable, Red: Hazardous) to keep Raipur pristine.")}
+                    className="bg-white hover:bg-[#fafbfa] active:scale-[0.98] rounded-3xl p-4 flex flex-col justify-between h-[108px] text-left transition shadow-xs border border-[#e8ece5] group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#fef9eb] text-[#d97706] flex items-center justify-center">
+                      <BookOpen size={19} strokeWidth={2.2} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-[#1a251e] leading-snug">Awareness</h3>
+                      <p className="text-[11px] text-[#718274] font-medium">Learn & Contribute</p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Bottom Scenic Illustration */}
+                <div className="mt-auto -mx-5 -mb-16 relative overflow-hidden pointer-events-none">
+                  <img
+                    src="/cg_home_scenery.jpg"
+                    alt="Chhattisgarh Scenery"
+                    className="w-full h-44 object-cover object-bottom"
+                  />
                 </div>
               </div>
-              <span className="text-xs font-bold text-[#204e37] bg-white px-3 py-1.5 rounded-xl border border-[#c6dfc6]">
-                {t.callBtn}
-              </span>
-            </a>
+
+              {/* Bottom Navigation Bar */}
+              <div className="absolute bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-[#e2e8de] rounded-t-3xl flex items-center justify-around px-4 z-20 shadow-lg">
+                <button
+                  onClick={() => setCurrentScreen("home")}
+                  className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-[#1b4329] transition cursor-pointer"
+                >
+                  <Home size={19} className="fill-[#1b4329]" />
+                  <span>Home</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentScreen("report")}
+                  className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-[#718274] hover:text-[#1b4329] transition cursor-pointer"
+                >
+                  <Clock size={19} />
+                  <span>Report</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentScreen("track")}
+                  className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-[#718274] hover:text-[#1b4329] transition cursor-pointer"
+                >
+                  <Search size={19} />
+                  <span>Track</span>
+                </button>
+
+                <button
+                  onClick={() => setShowModalInfo("WasteLoop Citizen Menu: Settings, Profile, Language (Hindi / Chhattisgarhi / English), Raipur Municipal Helplines (1100).")}
+                  className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-[#718274] hover:text-[#1b4329] transition cursor-pointer"
+                >
+                  <List size={19} />
+                  <span>More</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Label under phone */}
+            <span className="text-sm font-semibold text-[#3b4d3e] tracking-tight">1. Home</span>
           </div>
         )}
 
@@ -820,6 +978,57 @@ export default function CitizenMinimalApp() {
         <div className="fixed bottom-6 inset-x-4 max-w-sm mx-auto z-50 bg-[#204e37] text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center justify-center gap-2.5 text-xs font-bold animate-in fade-in">
           <CheckCircle2 size={18} className="text-[#a7f3d0]" />
           <span>{t.successMsg}</span>
+        </div>
+      )}
+
+      {/* Info Modal */}
+      {showModalInfo && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl flex flex-col gap-3 border border-[#d6dfce]">
+            <h4 className="text-sm font-bold text-[#19321c]">WasteLoop Info</h4>
+            <p className="text-xs text-[#4c5e4c] leading-relaxed">{showModalInfo}</p>
+            <button
+              onClick={() => setShowModalInfo(null)}
+              className="mt-2 bg-[#204e37] hover:bg-[#183d2b] text-white py-2.5 rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI Duplicate Detected Modal */}
+      {duplicateAlert && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl flex flex-col gap-3.5 border-2 border-emerald-600">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-[#143826]">Similar Complaint Already Active!</h4>
+                <span className="text-[11px] font-bold text-emerald-700">Case {duplicateAlert.matchedCaseId} · Merged by AI</span>
+              </div>
+            </div>
+            
+            <p className="text-xs text-[#3b4d3e] leading-relaxed bg-[#f3f8f1] p-3 rounded-xl border border-[#d6e5d2]">
+              {duplicateAlert.reason}
+            </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-900 font-medium">
+              ⚡ <strong>Priority Boosted:</strong> Multiple citizens reporting this exact spot has automatically escalated this issue to High/Urgent for immediate squad dispatch.
+            </div>
+
+            <button
+              onClick={() => {
+                setDuplicateAlert(null);
+                setCurrentScreen("track");
+              }}
+              className="mt-1 bg-[#1b4329] hover:bg-[#153721] text-white py-3 rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+            >
+              Track Active Cleanup Progress →
+            </button>
+          </div>
         </div>
       )}
 
